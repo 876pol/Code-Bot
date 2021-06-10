@@ -35,7 +35,7 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
         event.channel.sendMessage(generateEmbedWhileCodeIsRunning(testCases).build()).queue { msg: Message? ->
             val folder = createTempFolderAndAddFiles(code)
             for (i in 0 until problem.size) {
-                editInputFile(File("$folder/temp.in"), problem.input[i])
+                editInputFile(File("$folder/test.in"), problem.input[i])
                 this.output.clear()
                 msg!!.editMessage(generateEmbedWhileCodeIsRunning(testCases).build()).queue()
                 runTest(folder, testCases, problem, i)
@@ -50,8 +50,8 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
 
     private fun runTest(folder: Path, testCases: Array<Pair<Int, Int>>, problem: Problem, index: Int) {
         val processBuilder = codeProcessBuilder(
-            File(folder.toString() + "/temp" + language.fileExtension),
-            File("$folder/temp.in")
+            File("$folder/Main${language.fileExtension}"),
+            File("$folder/test.in")
         )
         if (processBuilder == null) {
             testCases[index] = Pair(3, -1)
@@ -83,8 +83,8 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
 
     private fun createTempFolderAndAddFiles(code: String): Path {
         val tempDir = createTempDirectory()
-        val codeFile = File(String.format("%s/temp%s", tempDir, language.fileExtension))
-        val inputFile = File(String.format("%s/temp%s", tempDir, ".in"))
+        val codeFile = File("$tempDir/Main${language.fileExtension}")
+        val inputFile = File("$tempDir/test.in")
         codeFile.deleteOnExit()
         inputFile.deleteOnExit()
         codeFile.writeText(code)
@@ -96,55 +96,14 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
         inputFile.writeText(input)
     }
 
-    private fun compileCodeAndReturnExitCode(file: File): Int {
-        val runCommandBuilder = ProcessBuilder(
-            language.program, file.absolutePath, "-o",
-            file.name + ".out"
-        )
-        runCommandBuilder.directory(file.parentFile)
-        runCommandBuilder.redirectErrorStream(true)
-        val runningCodeProcess = runCommandBuilder.start()
-        val codeBufferedReader = BufferedReader(
-            InputStreamReader(runningCodeProcess.inputStream)
-        )
-        var line: Int
-        while (codeBufferedReader.read().also { line = it } != -1) {
-            output.append(line.toChar())
-        }
-        runningCodeProcess.waitFor()
-        return if (runningCodeProcess.exitValue() != 0) 1 else 0
-    }
-
     private fun codeProcessBuilder(codeFile: File, inputFile: File): ProcessBuilder? {
-        val runCommandBuilder: ProcessBuilder =
-            if (language.isCompiled) {
-                if (!File(codeFile.parentFile.absolutePath + "/" + codeFile.name + ".out").exists()
-                    && compileCodeAndReturnExitCode(codeFile) == 1
-                ) {
-                    return null
-                }
-                if (!codeFile.parentFile.setWritable(false)) {
-                    Logger.getLogger(Judge::class.java.name)
-                        .log(Level.WARNING, "Folder still writable: " + codeFile.parentFile)
-                }
-                if (Main.os == "Windows") {
-                    ProcessBuilder("cmd", "/C", codeFile.name + ".out")
-                } else {
-                    ProcessBuilder("bash", "-c", "ulimit -Sv 64000000 && ./" + codeFile.name + ".out")
-                }
-            } else {
-                if (!codeFile.parentFile.setWritable(false)) {
-                    Logger.getLogger(Judge::class.java.name)
-                        .log(Level.WARNING, "Folder still writable: " + codeFile.parentFile)
-                }
-                if (Main.os == "Windows") {
-                    ProcessBuilder("cmd", "/C", language.program + " " + codeFile.absolutePath)
-                } else {
-                    ProcessBuilder(
-                        "bash", "-c", "ulimit -Sv 64000000 && " + language.program + " " + codeFile.absolutePath
-                    )
-                }
-            }
+        val (runCommandBuilder, s) = language.compileAndReturnCommandAndSendErrorMessage.invoke(codeFile)
+        println(s)
+        if (runCommandBuilder == null) {
+            Logger.getLogger(Judge::class.java.name)
+                .log(Level.WARNING, "Compilation Error | File: ${codeFile.parentFile}")
+            return null
+        }
         runCommandBuilder.directory(codeFile.parentFile)
         runCommandBuilder.redirectInput(inputFile)
         return runCommandBuilder
@@ -170,7 +129,7 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
 
     private fun generateEmbedWhileCodeIsRunning(testCases: Array<Pair<Int, Int>>): EmbedBuilder {
         return EmbedBuilder()
-            .setTitle(event.author.name + "'s Submission")
+            .setTitle("${event.author.name}'s Submission")
             .setDescription(IntStream.range(0, testCases.size).mapToObj { i: Int ->
                 "**Test $i:**\n" + when (testCases[i].first) {
                     -1 -> ":clock1: Pending"
@@ -178,15 +137,15 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
                     1 -> ":x: Wrong Answer"
                     2 -> ":warning: Time Limit Exceeded"
                     else -> ":warning: Runtime or Compilation Error"
-                } + " | " + testCases[i].second + "ms"
+                } + " | ${testCases[i].second}ms"
             }.toArray().joinToString("\n"))
-            .setFooter("Created by " + event.author.name, event.author.avatarUrl)
+            .setFooter("Created by ${event.author.name}", event.author.avatarUrl)
     }
 
     private fun generateEmbedAfterComplete(testCases: Array<Pair<Int, Int>>): EmbedBuilder {
         return EmbedBuilder()
             .setTitle(
-                event.author.name + "'s Submission - " +
+                "${event.author.name}'s Submission - " +
                         if (Arrays.stream(testCases).anyMatch { a: Pair<Int, Int> -> a.first != 0 }) "Failed"
                         else "Completed"
             )
@@ -197,9 +156,9 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
                     1 -> ":x: Wrong Answer"
                     2 -> ":warning: Time Limit Exceeded"
                     else -> ":warning: Runtime or Compilation Error"
-                } + " | " + testCases[i].second + "ms"
+                } + " | ${testCases[i].second}ms"
             }.toArray().joinToString("\n"))
-            .setFooter(String.format("Created by %s", event.author.name), event.author.avatarUrl)
+            .setFooter("Created by ${event.author.name}", event.author.avatarUrl)
     }
 
     class Problem(problem: Long) {

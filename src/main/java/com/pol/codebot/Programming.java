@@ -1,5 +1,6 @@
 package com.pol.codebot;
 
+import kotlin.Pair;
 import net.dv8tion.jda.api.EmbedBuilder;
 import net.dv8tion.jda.api.entities.Message;
 import net.dv8tion.jda.api.entities.User;
@@ -46,7 +47,7 @@ public class Programming extends Command {
         File file = createFile();
         makeRestAction().queue((Message msg) -> {
             try {
-                Process process = codeProcessBuilder(file, msg).start();
+                Process process = Objects.requireNonNull(codeProcessBuilder(file, msg)).start();
                 BufferedReader out = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 BufferedWriter in = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
                 Timer updateRemainingTimer = updateRemainingTimer(process);
@@ -75,7 +76,7 @@ public class Programming extends Command {
 
     private File createFile() throws IOException {
         Path tempDir = Files.createTempDirectory(null);
-        File codeFile = new File(String.format("%s/temp%s", tempDir, language.getFileExtension()));
+        File codeFile = new File(tempDir + "/Main" + language.getFileExtension());
         codeFile.deleteOnExit();
         FileWriter fileWriter = new FileWriter(codeFile);
         fileWriter.write(code);
@@ -83,50 +84,17 @@ public class Programming extends Command {
         return codeFile;
     }
 
-    private void compileCodeAndUpdateOutput(File file, Message msg) throws IOException, InterruptedException {
-        ProcessBuilder runCommandBuilder = new ProcessBuilder(language.getProgram(), file.getAbsolutePath(), "-o",
-                file.getName() + ".out");
-        runCommandBuilder.directory(file.getParentFile());
-        runCommandBuilder.redirectErrorStream(true);
-        Process runningCodeProcess = runCommandBuilder.start();
-        BufferedReader codeBufferedReader = new BufferedReader(
-                new InputStreamReader(runningCodeProcess.getInputStream()));
-        int line;
-        while ((line = codeBufferedReader.read()) != -1) {
-            output.append((char) line);
-        }
+    private ProcessBuilder codeProcessBuilder(File file, Message msg) throws IOException, InterruptedException {
+        Pair<ProcessBuilder, String> processBuilderOutputPair = language.getCompileAndReturnCommandAndSendErrorMessage().invoke(file);
+        ProcessBuilder runCommandBuilder = processBuilderOutputPair.getFirst();
+        output.append(processBuilderOutputPair.getSecond());
         outputString.set(output.toString());
         outputLength.set(output.length());
         msg.editMessage(makeEmbed(outputLength.get(), outputString.get()).build()).queue();
-        runningCodeProcess.waitFor();
-    }
-
-    private ProcessBuilder codeProcessBuilder(File file, Message msg) throws IOException, InterruptedException {
-        ProcessBuilder runCommandBuilder;
-        if (language.isCompiled()) {
-            compileCodeAndUpdateOutput(file, msg);
-            if (!file.getParentFile().setWritable(false)) {
-                Logger.getLogger(Programming.class.getName()).log(Level.WARNING,
-                        String.format("Folder still writable: %s", file.getParentFile()));
-            }
-            if (Main.os.equals("Windows")) {
-                runCommandBuilder = new ProcessBuilder("cmd", "/C", file.getName() + ".out");
-            } else {
-                runCommandBuilder = new ProcessBuilder("bash", "-c",
-                        String.format("ulimit -Sv 64000000 && ./%s.out", file.getName()));
-            }
-        } else {
-            if (!file.getParentFile().setWritable(false)) {
-                Logger.getLogger(Programming.class.getName()).log(Level.WARNING,
-                        String.format("Folder still writable: %s", file.getParentFile()));
-            }
-            if (Main.os.equals("Windows")) {
-                runCommandBuilder = new ProcessBuilder("cmd", "/C",
-                        language.getProgram() + " " + file.getAbsolutePath());
-            } else {
-                runCommandBuilder = new ProcessBuilder("bash", "-c",
-                        String.format("ulimit -Sv 64000000 && %s %s", language.getProgram(), file.getAbsolutePath()));
-            }
+        if (runCommandBuilder == null) {
+            Logger.getLogger(Programming.class.getName())
+                    .log(Level.WARNING, "Compilation Error | File: " + file.getParentFile());
+            return null;
         }
         runCommandBuilder.directory(file.getParentFile());
         runCommandBuilder.redirectErrorStream(true);
