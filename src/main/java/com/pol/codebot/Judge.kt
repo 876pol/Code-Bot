@@ -97,8 +97,7 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
     }
 
     private fun codeProcessBuilder(codeFile: File, inputFile: File): ProcessBuilder? {
-        val (runCommandBuilder, s) = language.compileAndReturnCommandAndSendErrorMessage.invoke(codeFile)
-        println(s)
+        val (runCommandBuilder, _) = language.compileAndReturnCommandAndSendErrorMessage.invoke(codeFile)
         if (runCommandBuilder == null) {
             Logger.getLogger(Judge::class.java.name)
                 .log(Level.WARNING, "Compilation Error | File: ${codeFile.parentFile}")

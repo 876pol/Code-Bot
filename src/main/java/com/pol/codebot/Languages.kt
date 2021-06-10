@@ -82,35 +82,52 @@ enum class Languages(
         ".java",
         "logos/java.png",
         { codeFile: File ->
-            val runCommandBuilder = ProcessBuilder(
-                "javac", codeFile.absolutePath
-            )
-            runCommandBuilder.directory(codeFile.parentFile)
-            runCommandBuilder.redirectErrorStream(true)
-            val runningCodeProcess = runCommandBuilder.start()
-            val codeBufferedReader = BufferedReader(
-                InputStreamReader(runningCodeProcess.inputStream)
-            )
-            var line: Int
-            val output = StringBuilder()
-            while (codeBufferedReader.read().also { line = it } != -1) {
-                output.append(line.toChar())
-            }
-            runningCodeProcess.waitFor()
-            Pair(
-                if (runningCodeProcess.exitValue() == 0) {
+            if (Thread.currentThread().stackTrace[3].className == Programming::class.java.name) {
+                Pair(
                     if (Main.os == "Windows") {
-                        ProcessBuilder("cmd", "/C", "java " + codeFile.nameWithoutExtension)
+                        ProcessBuilder(
+                            "cmd", "/C",
+                            "java " + codeFile.absolutePath
+                        )
                     } else {
                         setWritableParentFolderAndLog(codeFile)
                         ProcessBuilder(
-                            "bash",
-                            "-c",
-                            "ulimit -Sv 64000000 && java " + codeFile.nameWithoutExtension
+                            "bash", "-c",
+                            "ulimit -Sv 64000000 && java " + codeFile.absolutePath
                         )
-                    }
-                } else null, output.toString()
-            )
+                    }, ""
+                )
+            } else {
+                val runCommandBuilder = ProcessBuilder(
+                    "javac", codeFile.absolutePath
+                )
+                runCommandBuilder.directory(codeFile.parentFile)
+                runCommandBuilder.redirectErrorStream(true)
+                val runningCodeProcess = runCommandBuilder.start()
+                val codeBufferedReader = BufferedReader(
+                    InputStreamReader(runningCodeProcess.inputStream)
+                )
+                var line: Int
+                val output = StringBuilder()
+                while (codeBufferedReader.read().also { line = it } != -1) {
+                    output.append(line.toChar())
+                }
+                runningCodeProcess.waitFor()
+                Pair(
+                    if (runningCodeProcess.exitValue() == 0) {
+                        if (Main.os == "Windows") {
+                            ProcessBuilder("cmd", "/C", "java " + codeFile.nameWithoutExtension)
+                        } else {
+                            setWritableParentFolderAndLog(codeFile)
+                            ProcessBuilder(
+                                "bash",
+                                "-c",
+                                "ulimit -Sv 64000000 && java " + codeFile.nameWithoutExtension
+                            )
+                        }
+                    } else null, output.toString()
+                )
+            }
         }
     ),
     PYTHON2(
