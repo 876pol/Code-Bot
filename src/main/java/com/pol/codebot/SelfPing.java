@@ -9,7 +9,7 @@ import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class SelfPing extends TimerTask {
-    static String url = "https://codebot123.herokuapp.com/";
+    public static String url = "https://codebot123.herokuapp.com/";
 
     public SelfPing() {
 
@@ -19,24 +19,25 @@ public class SelfPing extends TimerTask {
         String server1 = "https://codebot123.herokuapp.com/";
         String server2 = "https://codebot122.herokuapp.com/";
         Logger logger = Logger.getLogger(SelfPing.class.getName());
-        try {
-            testUrl(server1);
-        } catch (IOException e) {
+        if (testUrlNotWorking(server1)) {
             logger.log(Level.INFO, String.format("%s is offline", server1));
             url = server2;
         }
-        try {
-            testUrl(server2);
-        } catch (IOException e) {
+        if (testUrlNotWorking(server2)) {
             logger.log(Level.INFO, String.format("%s is offline", server2));
             url = server1;
         }
     }
 
-    private static void testUrl(String urlString) throws IOException {
-        URL url = new URL(urlString);
-        URLConnection urlcon = url.openConnection();
-        urlcon.setRequestProperty("User-Agent", "java:com.pol.codebot:v1.0.0");
-        urlcon.getInputStream();
+    private static boolean testUrlNotWorking(String urlString) {
+        try {
+            URL url = new URL(urlString);
+            URLConnection urlcon = url.openConnection();
+            urlcon.setRequestProperty("User-Agent", "java:com.pol.codebot:v1.0.0");
+            urlcon.getInputStream();
+            return false;
+        } catch (IOException e) {
+            return true;
+        }
     }
 }

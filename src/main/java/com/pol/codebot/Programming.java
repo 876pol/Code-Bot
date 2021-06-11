@@ -15,7 +15,7 @@ import java.io.*;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -23,7 +23,7 @@ public class Programming extends Command {
     private final String code;
     private final Languages language;
     private final StringBuffer output;
-    private final AtomicInteger timeoutLeft;
+    private final AtomicReference<Timer> timeoutLeftTimer;
     private File codeFile;
 
     public Programming(MessageReceivedEvent event, String code, Languages language) {
@@ -31,7 +31,7 @@ public class Programming extends Command {
         this.code = code;
         this.language = language;
         this.output = new StringBuffer("\u200B");
-        this.timeoutLeft = new AtomicInteger(120);
+        this.timeoutLeftTimer = new AtomicReference<>();
     }
 
     @Override
@@ -46,19 +46,19 @@ public class Programming extends Command {
                 Process process = Objects.requireNonNull(generateCodeProcessBuilder(msg)).start();
                 BufferedReader out = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 BufferedWriter in = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
-                Timer updateRemainingTimer = generateUpdateOutputTimer(process);
+                Timer updateOutputTimer = generateUpdateOutputTimer(msg);
+                timeoutLeftTimer.set(generateUpdateRemainingTimer(process));
                 ListenerAdapter inputListener = inputListener(msg, in, process);
                 Main.jda.addEventListener(inputListener);
-                Timer updateOutputTimer = updateOutputTimer(msg);
+                Logger.getLogger(Programming.class.getName()).log(Level.INFO,
+                        String.format("Language: %s | File: %s", language.name(), codeFile.getParentFile()));
                 updateOutput(out);
-                Main.jda.removeEventListener(inputListener);
                 process.waitFor();
                 deleteFileAndLog();
                 output.append("\nprogram terminated with exit code ").append(process.exitValue());
-                Logger.getLogger(Programming.class.getName()).log(Level.INFO,
-                        String.format("Language: %s | File: %s", language.name(), codeFile.getParentFile()));
+                Main.jda.removeEventListener(inputListener);
                 updateOutputTimer.cancel();
-                updateRemainingTimer.cancel();
+                timeoutLeftTimer.get().cancel();
                 in.close();
                 out.close();
                 msg.editMessage(generateEmbed().build()).queue();
@@ -105,19 +105,33 @@ public class Programming extends Command {
         return restAction;
     }
 
-    private Timer generateUpdateOutputTimer(Process process) {
+    private Timer generateUpdateRemainingTimer(Process process) {
         TimerTask updateRemainingTask = new TimerTask() {
             @Override
             public void run() {
-                timeoutLeft.addAndGet(-10);
-                if (timeoutLeft.get() < 0) {
-                    process.destroyForcibly();
-                }
+                process.destroyForcibly();
             }
         };
         Timer updateRemainingTimer = new Timer();
-        updateRemainingTimer.schedule(updateRemainingTask, Calendar.getInstance().getTime(), 10000);
+        updateRemainingTimer.schedule(updateRemainingTask, 120000);
         return updateRemainingTimer;
+    }
+
+    private Timer generateUpdateOutputTimer(Message msg) {
+        TimerTask updateOutput = new TimerTask() {
+            String pastStr = output.toString();
+
+            @Override
+            public void run() {
+                if (!pastStr.equals(output.toString())) {
+                    msg.editMessage(generateEmbed().build()).queue();
+                    pastStr = output.toString();
+                }
+            }
+        };
+        Timer updateOutputTimer = new Timer();
+        updateOutputTimer.schedule(updateOutput, Calendar.getInstance().getTime(), 3000);
+        return updateOutputTimer;
     }
 
     private EmbedBuilder generateEmbed() {
@@ -143,6 +157,8 @@ public class Programming extends Command {
                         output.append(userInput);
                         in.write(userInput);
                         in.flush();
+                        timeoutLeftTimer.get().cancel();
+                        timeoutLeftTimer.set(generateUpdateRemainingTimer(process));
                         msg.editMessage(generateEmbed().build()).queue();
                     }
                 } catch (IOException | IllegalStateException e) {
@@ -161,28 +177,6 @@ public class Programming extends Command {
                 }
             }
         };
-    }
-
-    private Timer updateOutputTimer(Message msg) {
-        TimerTask updateOutput = new TimerTask() {
-            String pastStr = output.toString();
-
-            @Override
-            public void run() {
-                try {
-                    if (!pastStr.equals(output.toString())) {
-                        timeoutLeft.set(120);
-                        msg.editMessage(generateEmbed().build()).queue();
-                    }
-                    pastStr = output.toString();
-                } catch (IllegalStateException e) {
-                    unexpectedError(e.toString());
-                }
-            }
-        };
-        Timer updateOutputTimer = new Timer();
-        updateOutputTimer.schedule(updateOutput, Calendar.getInstance().getTime(), 2000);
-        return updateOutputTimer;
     }
 
     private void deleteFileAndLog() {

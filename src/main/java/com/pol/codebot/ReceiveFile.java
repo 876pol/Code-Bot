@@ -32,13 +32,16 @@ public class ReceiveFile extends Command {
                 });
     }
 
+    private boolean checkIfMessageNotFromSameChannelAndUser(Message m1, Message m2) {
+        return !m1.getChannel().equals(m2.getChannel()) || !m1.getAuthor().equals(m2.getAuthor());
+    }
+
     private ListenerAdapter fileListener(Timer fileTimer) {
         return new ListenerAdapter() {
             @Override
             public void onMessageReceived(@NotNull MessageReceivedEvent event) {
                 List<Message.Attachment> attachments = event.getMessage().getAttachments();
-                if (!(ReceiveFile.super.event.getAuthor().getId().equals(event.getAuthor().getId())
-                        && ReceiveFile.super.event.getChannel().getId().equals(event.getChannel().getId()))
+                if (checkIfMessageNotFromSameChannelAndUser(ReceiveFile.super.event.getMessage(), event.getMessage())
                         || attachments.size() != 1) {
                     return;
                 }
@@ -59,18 +62,17 @@ public class ReceiveFile extends Command {
         return new ListenerAdapter() {
             @Override
             public void onMessageReceived(@NotNull MessageReceivedEvent event) {
-                if (!(ReceiveFile.super.event.getAuthor().getId().equals(event.getAuthor().getId())
-                        && ReceiveFile.super.event.getChannel().getId().equals(event.getChannel().getId()))) {
+                if (checkIfMessageNotFromSameChannelAndUser(ReceiveFile.super.event.getMessage(), event.getMessage())) {
                     return;
                 }
                 String language = event.getMessage().getContentStripped();
-                runCodeInLanguage(language, code, event);
+                runCodeInLanguageAndReturnSuccess(code, language);
                 Main.jda.removeEventListener(this);
             }
         };
     }
 
-    private boolean runCodeInLanguage(String language, String code, MessageReceivedEvent event) {
+    private boolean runCodeInLanguageAndReturnSuccess(String code, String language) {
         Languages languages = Main.stringToLanguage(language);
         if (languages == null) {
             return false;
@@ -80,7 +82,7 @@ public class ReceiveFile extends Command {
     }
 
     private void fileTimerTask(Message msg, ListenerAdapter listener, AtomicInteger secondsLeft, Timer fileTimer,
-            String message) {
+                               String message) {
         TimerTask fileTimerTask = new TimerTask() {
             @Override
             public void run() {
@@ -97,25 +99,29 @@ public class ReceiveFile extends Command {
     }
 
     private void detectFileExtensionAndRun(String extension, String code) {
-        if (!runCodeInLanguage(extension, code, event)) {
+        if (!runCodeInLanguageAndReturnSuccess(code, extension)) {
             AtomicInteger secondsLeft = new AtomicInteger(30);
             event.getChannel()
                     .sendMessage(timer(secondsLeft.get(),
                             "State the language that the file was written in within %d seconds for Code Bot to run")
-                                    .build())
+                            .build())
                     .queue((Message msg) -> {
                         Timer fileTimer = new Timer();
                         ListenerAdapter languageListener = languageListener(code);
                         Main.jda.addEventListener(languageListener);
                         fileTimerTask(msg, languageListener, secondsLeft, fileTimer,
-                                "State the language that the file was written in within %d seconds for Code Bot to run");
+                                "State the language that the file was written in within %d seconds for Code Bot to " +
+                                        "run");
                     });
         }
     }
 
     private EmbedBuilder timer(int secondsLeft, String message) {
-        return new EmbedBuilder().setTitle("File Upload").setDescription(String.format(message, secondsLeft)).setFooter(
-                String.format("Created by %s", event.getAuthor().getName()), event.getAuthor().getAvatarUrl());
+        return new EmbedBuilder()
+                .setTitle("File Upload")
+                .setDescription(String.format(message, secondsLeft))
+                .setFooter(String.format("Created by %s", event.getAuthor().getName()),
+                        event.getAuthor().getAvatarUrl());
     }
 
 }

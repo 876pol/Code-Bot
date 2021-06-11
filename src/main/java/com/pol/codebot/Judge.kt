@@ -15,6 +15,19 @@ import java.util.logging.Logger
 import java.util.stream.IntStream
 import kotlin.io.path.createTempDirectory
 
+enum class Verdicts(
+    val message: String,
+    val passed: Boolean
+) {
+    PENDING(":clock1: Pending", false),
+    SKIPPED(":exclamation: Skipped", false),
+    PASSED(":white_check_mark: Passed", true),
+    WRONG_ANSWER(":x: Wrong Answer", false),
+    TIME_LIMIT_EXCEEDED(":warning: Time Limit Exceeded", false),
+    COMPILATION_ERROR(":warning: Compilation Error", false),
+    RUNTIME_ERROR(":warning: Runtime Error", false);
+}
+
 class Judge(event: MessageReceivedEvent, code: String, language: Languages, problem: Long) : Command() {
     private val code: String
     private val language: Languages
@@ -30,7 +43,7 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
     }
 
     override fun setCommand() {
-        val testCasesResults = Array(this.problem.size) { Pair(-1, -1) }
+        val testCasesResults = Array(this.problem.size) { Pair(Verdicts.PENDING, -1) }
         this.event.channel.sendMessage(generateCodeRunningEmbed(testCasesResults, this.event).build())
             .queue { msg: Message? ->
                 val folder = generateTempFolderAndAddFiles(this.code, this.language.fileExtension)
@@ -39,7 +52,7 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
                     this.output.clear()
                     msg!!.editMessage(generateCodeRunningEmbed(testCasesResults, this.event).build()).queue()
                     runTest(folder, testCasesResults, this.problem, i)
-                    if (testCasesResults[i].first != 0) {
+                    if (testCasesResults[i].first != Verdicts.PASSED) {
                         break
                     }
                 }
@@ -48,14 +61,14 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
             }
     }
 
-    private fun runTest(folder: Path, testCases: Array<Pair<Int, Int>>, problem: Problem, index: Int) {
+    private fun runTest(folder: Path, testCases: Array<Pair<Verdicts, Int>>, problem: Problem, index: Int) {
         val processBuilder = generateProcessBuilderAndLog(
             File("$folder/Main${this.language.fileExtension}"),
             File("$folder/test.in"),
             this.language
         )
         if (processBuilder == null) {
-            testCases[index] = Pair(3, -1)
+            testCases[index] = Pair(Verdicts.COMPILATION_ERROR, -1)
             return
         }
         val process = processBuilder.start()
@@ -66,7 +79,7 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
         try {
             Awaitility.await().atMost(3, TimeUnit.SECONDS).until { !process.isAlive }
         } catch (e: ConditionTimeoutException) {
-            testCases[index] = Pair(2, 3000)
+            testCases[index] = Pair(Verdicts.TIME_LIMIT_EXCEEDED, 3000)
         }
         val totalTime = (System.currentTimeMillis() - startTime).toInt()
         updateOutput.interrupt()
@@ -75,9 +88,9 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
         outputReader.close()
         testCases[index] = Pair(
             when {
-                process.exitValue() != 0 -> 4
-                this.output.toString().trim() == problem.output[index] -> 0
-                else -> 1
+                process.exitValue() != 0 -> Verdicts.RUNTIME_ERROR
+                this.output.toString().trim() == problem.output[index] -> Verdicts.PASSED
+                else -> Verdicts.WRONG_ANSWER
             }, totalTime
         )
     }
@@ -141,38 +154,29 @@ private fun readToStringBuilder(out: BufferedReader, output: StringBuilder) {
 }
 
 private fun generateCodeRunningEmbed(
-    testCases: Array<Pair<Int, Int>>,
+    testCases: Array<Pair<Verdicts, Int>>,
     event: MessageReceivedEvent
 ): EmbedBuilder {
     return EmbedBuilder()
         .setTitle("${event.author.name}'s Submission")
         .setDescription(IntStream.range(0, testCases.size).mapToObj { i: Int ->
-            "**Test $i:**\n" + when (testCases[i].first) {
-                -1 -> ":clock1: Pending"
-                0 -> ":white_check_mark: Passed"
-                1 -> ":x: Wrong Answer"
-                2 -> ":warning: Time Limit Exceeded"
-                else -> ":warning: Runtime or Compilation Error"
-            } + " | ${testCases[i].second}ms"
+            "**Test $i:**\n" + testCases[i].first.message + " | ${testCases[i].second}ms"
         }.toArray().joinToString("\n"))
         .setFooter("Created by ${event.author.name}", event.author.avatarUrl)
 }
 
-private fun generateResultEmbed(testCases: Array<Pair<Int, Int>>, event: MessageReceivedEvent): EmbedBuilder {
+private fun generateResultEmbed(testCases: Array<Pair<Verdicts, Int>>, event: MessageReceivedEvent): EmbedBuilder {
     return EmbedBuilder()
         .setTitle(
             "${event.author.name}'s Submission - " +
-                    if (Arrays.stream(testCases).anyMatch { a: Pair<Int, Int> -> a.first != 0 }) "Failed"
+                    if (Arrays.stream(testCases)
+                            .anyMatch { a: Pair<Verdicts, Int> -> !a.first.passed }
+                    ) "Failed"
                     else "Completed"
         )
         .setDescription(IntStream.range(0, testCases.size).mapToObj { i: Int ->
-            "**Test $i:**\n" + when (testCases[i].first) {
-                -1 -> ":exclamation: Skipped"
-                0 -> ":white_check_mark: Passed"
-                1 -> ":x: Wrong Answer"
-                2 -> ":warning: Time Limit Exceeded"
-                else -> ":warning: Runtime or Compilation Error"
-            } + " | ${testCases[i].second}ms"
+            "**Test $i:**\n" + if (testCases[i].first == Verdicts.PENDING) Verdicts.SKIPPED.message
+            else testCases[i].first.message + " | ${testCases[i].second}ms"
         }.toArray().joinToString("\n"))
         .setFooter("Created by ${event.author.name}", event.author.avatarUrl)
 }
