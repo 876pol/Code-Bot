@@ -15,7 +15,7 @@ enum class Languages(
     C(
         "C",
         ".c",
-        "logos/c.png",
+        "images/logos/c.png",
         { codeFile: File ->
             val runCommandBuilder = ProcessBuilder(
                 "g++", codeFile.absolutePath, "-o",
@@ -47,7 +47,7 @@ enum class Languages(
     ),
     CPP("C++",
         ".cpp",
-        "logos/cpp.png",
+        "images/logos/cpp.png",
         { codeFile: File ->
             val runCommandBuilder = ProcessBuilder(
                 "gcc", codeFile.absolutePath, "-o",
@@ -80,7 +80,7 @@ enum class Languages(
     JAVA(
         "Java",
         ".java",
-        "logos/java.png",
+        "images/logos/java.png",
         { codeFile: File ->
             if (Thread.currentThread().stackTrace[3].className == Programming::class.java.name) {
                 Pair(
@@ -133,7 +133,7 @@ enum class Languages(
     PYTHON2(
         "Python",
         ".py",
-        "logos/python.png",
+        "images/logos/python.png",
         { codeFile: File ->
             Pair(
                 if (Main.os == "Windows") {
@@ -154,7 +154,7 @@ enum class Languages(
     PYTHON3(
         "Python",
         ".py",
-        "logos/python.png",
+        "images/logos/python.png",
         { codeFile: File ->
             Pair(
                 if (Main.os == "Windows") {
@@ -174,7 +174,7 @@ enum class Languages(
     ),
     SHELL("Shell",
         ".sh",
-        "logos/shell.png",
+        "images/logos/shell.png",
         { codeFile: File ->
             setWritableParentFolderAndLog(codeFile)
             Pair(
@@ -187,13 +187,13 @@ enum class Languages(
     ),
     HTML("HTML",
         ".html",
-        "logos/html.png",
+        "images/logos/html.png",
         { Pair(null, "") }
     ),
     JS(
         "Javascript",
         ".js",
-        "logos/javascript.png",
+        "images/logos/javascript.png",
         { codeFile: File ->
             setWritableParentFolderAndLog(codeFile)
             Pair(

@@ -215,7 +215,7 @@ class HTML extends Command {
         }
         this.key = key1;
         ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-        this.attachment = classloader.getResourceAsStream("logos/html.png");
+        this.attachment = classloader.getResourceAsStream("images/logos/html.png");
     }
 
     private String generateKey() {
