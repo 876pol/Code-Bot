@@ -19,7 +19,7 @@ public class Help extends Command {
         User author = event.getAuthor();
         return new EmbedBuilder()
         .setTitle("Code Bot Help")
-        .setDescription("Here's the link to our help page:\n" + SelfPing.url + "help")
+        .setDescription("Here's the link to our help page:\n" + SelfPing.url + "help/index.html")
         .setFooter("Created by " + author.getName(), author.getAvatarUrl());
     }
 

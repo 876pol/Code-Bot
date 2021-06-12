@@ -38,8 +38,10 @@ task deployHeroku() {
 }
 
 task restartHeroku() {
-    exec {
-        workingDir = file('C:\\Users\\paulc\\Code\\Java\\Code Bot\\')
-        commandLine = ['cmd', '/c', 'heroku_restart.bat']
+    doLast {
+        exec {
+            workingDir = file('C:\\Users\\paulc\\Code\\Java\\Code Bot\\')
+            commandLine = ['cmd', '/c', 'heroku_restart.bat']
+        }
     }
 }

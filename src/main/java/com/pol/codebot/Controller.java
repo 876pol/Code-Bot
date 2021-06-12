@@ -18,16 +18,7 @@ public class Controller implements ErrorController {
     @ResponseBody
     public String error() throws IOException {
         ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-        InputStream attachment = classloader.getResourceAsStream("error/index.html");
-        assert attachment != null;
-        return new String(attachment.readAllBytes(), StandardCharsets.UTF_8);
-    }
-
-    @RequestMapping(value = "/help")
-    @ResponseBody
-    public String help() throws IOException {
-        ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-        InputStream attachment = classloader.getResourceAsStream("help/index.html");
+        InputStream attachment = classloader.getResourceAsStream("static/error/index.html");
         assert attachment != null;
         return new String(attachment.readAllBytes(), StandardCharsets.UTF_8);
     }
