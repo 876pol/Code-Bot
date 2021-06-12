@@ -6,6 +6,6 @@ Link to a help page with all commands:
 ___
 To clone this repository:  
 	```
-	git clone https://github.com/876pol/Code-Bot.git  
-	cd Code-Bot  
+	git clone https://github.com/876pol/Code-Bot.git\
+	cd Code-Bot\
 	```
