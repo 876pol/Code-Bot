@@ -31,8 +31,15 @@ task deployHeroku() {
     dependsOn tasks.bootJar
     doLast {
         exec {
-            workingDir = file('C:\\Users\\paulc\\Code\\Java\\Code Bot\\herokuAccountSwitch\\')
-            commandLine = ['cmd', '/c', 'herokuRedeploy.bat']
+            workingDir = file('C:\\Users\\paulc\\Code\\Java\\Code Bot\\')
+            commandLine = ['cmd', '/c', 'heroku_redeploy.bat']
         }
+    }
+}
+
+task restartHeroku() {
+    exec {
+        workingDir = file('C:\\Users\\paulc\\Code\\Java\\Code Bot\\')
+        commandLine = ['cmd', '/c', 'heroku_restart.bat']
     }
 }
