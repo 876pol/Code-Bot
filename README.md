@@ -9,4 +9,4 @@ To clone this repository:
 	cd Code-Bot
 
 ___
-[Code Bot example](src/main/resources/images/other/example.png)
+![Code Bot example](src/main/resources/images/other/example.png)
