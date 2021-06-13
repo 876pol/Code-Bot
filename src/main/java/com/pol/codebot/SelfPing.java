@@ -16,16 +16,8 @@ public class SelfPing extends TimerTask {
     }
 
     public void run() {
-        String server1 = "https://codebot123.herokuapp.com/";
-        String server2 = "https://codebot122.herokuapp.com/";
-        Logger logger = Logger.getLogger(SelfPing.class.getName());
-        if (testUrlNotWorking(server1)) {
-            logger.log(Level.INFO, String.format("%s is offline", server1));
-            url = server2;
-        }
-        if (testUrlNotWorking(server2)) {
-            logger.log(Level.INFO, String.format("%s is offline", server2));
-            url = server1;
+        if (testUrlNotWorking(url)) {
+            Logger.getLogger(SelfPing.class.getName()).log(Level.INFO, String.format("%s is offline", url));
         }
     }
 
