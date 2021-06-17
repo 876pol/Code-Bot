@@ -3,9 +3,9 @@ package com.pol.codebot;
 import org.springframework.boot.web.servlet.error.ErrorController;
 import org.springframework.web.bind.annotation.*;
 
-import java.io.IOException;
-import java.io.InputStream;
+import java.io.*;
 import java.nio.charset.StandardCharsets;
+
 @RestController
 public class Controller implements ErrorController {
     @RequestMapping(value = "/", method = RequestMethod.GET)
@@ -25,8 +25,19 @@ public class Controller implements ErrorController {
 
     @GetMapping("/html/{urlParameter}")
     public String htmlCode(@PathVariable("urlParameter") String urlParameter) throws IOException {
-        String page = HTML.fileMap.get(urlParameter);
-        return page == null ? error() : page;
+        File codeFile = HTML.fileMap.get(urlParameter);
+        if (codeFile == null) {
+            return error();
+        }
+        BufferedReader br = new BufferedReader(new FileReader(codeFile));
+        StringBuilder stringBuilder = new StringBuilder();
+        String line;
+        while ((line = br.readLine()) != null) {
+            stringBuilder.append(line);
+            stringBuilder.append(System.lineSeparator());
+        }
+        br.close();
+        return stringBuilder.toString();
     }
 
     @Override

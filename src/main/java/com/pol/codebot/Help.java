@@ -15,12 +15,17 @@ public class Help extends Command {
         event.getChannel().sendMessage(helpEmbed().build()).queue();
     }
 
+    @Override
+    public void invalidCommand(int i) {
+
+    }
+
     private EmbedBuilder helpEmbed() {
         User author = event.getAuthor();
         return new EmbedBuilder()
-        .setTitle("Code Bot Help")
-        .setDescription("Here's the link to our help page:\n" + SelfPing.url + "help/index.html")
-        .setFooter("Created by " + author.getName(), author.getAvatarUrl());
+                .setTitle("Code Bot Help")
+                .setDescription("Here's the link to our help page:\n" + SelfPing.url + "help/index.html")
+                .setFooter("Created by " + author.getName(), author.getAvatarUrl());
     }
 
 }

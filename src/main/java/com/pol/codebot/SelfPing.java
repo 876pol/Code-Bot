@@ -21,7 +21,7 @@ public class SelfPing extends TimerTask {
         }
     }
 
-    private static boolean testUrlNotWorking(String urlString) {
+    private boolean testUrlNotWorking(String urlString) {
         try {
             URL url = new URL(urlString);
             URLConnection urlcon = url.openConnection();

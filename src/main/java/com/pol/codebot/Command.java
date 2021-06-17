@@ -33,4 +33,6 @@ public abstract class Command extends Thread {
 
     public abstract void setCommand() throws Exception;
 
+    public abstract void invalidCommand(int i);
+
 }

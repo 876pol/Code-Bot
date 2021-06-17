@@ -1,13 +1,18 @@
 package com.pol.codebot;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Calendar;
+import java.util.List;
 import java.util.Timer;
+import java.util.concurrent.ExecutionException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.IntStream;
 
 import javax.security.auth.login.LoginException;
 
+import net.dv8tion.jda.api.entities.Message;
 import org.springframework.boot.SpringApplication;
 
 import net.dv8tion.jda.api.EmbedBuilder;
@@ -66,47 +71,32 @@ public class Main extends ListenerAdapter {
         new Timer().schedule(new SelfPing(), Calendar.getInstance().getTime(), 1200000);
     }
 
-    private static String parseCodeAndReturn(String code) {
-        String parsedCode = convertStringArrayToString(code.split(" "), 2);
-        if (parsedCode.startsWith("c++")) {
-            parsedCode = parsedCode.substring(3);
-        }
-        return parsedCode;
-    }
-
     public void onMessageReceived(MessageReceivedEvent event) {
         String[] message = event.getMessage().getContentStripped().toLowerCase().split(" ");
         if (!message[0].equals("code") || event.getAuthor().isBot()) {
             return;
         }
-        try {
-            String code = parseCodeAndReturn(event.getMessage().getContentStripped());
-            Languages languages = stringToLanguage(message[1]);
-            if (message[1].equals("judge") && languages != Languages.HTML) {
-                languages = stringToLanguage(message[2]);
-                if (languages == null) {
-                    throw new IllegalArgumentException();
-                }
-                new Judge(event, code.replaceAll("^.+?[\n| ]", ""), languages, 0L).start();
-            } else {
-                if (languages == null) {
-                    throw new IllegalArgumentException();
-                }
-                new Programming(event, code, languages).start();
+        switch (message[1]) {
+            case "run": {
+                try {
+                    new Programming(event, parseCodeAndReturn(event), stringToLanguage(message[2])).start();
+                } catch (NullPointerException ignored) {}
+                break;
             }
-        } catch (StringIndexOutOfBoundsException | IllegalArgumentException e) {
-            switch (message[1]) {
-                case "file":
-                    new ReceiveFile(event, message).start();
-                    break;
-                case "help":
-                    new Help(event).start();
-                    break;
-                default:
-                    EmbedBuilder eb = new EmbedBuilder().setTitle("Invalid Syntax")
-                            .setFooter("Use *code help* for all commands");
-                    event.getChannel().sendMessage(eb.build()).queue();
-            }
+            case "judge":
+                new Judge(event, parseCodeAndReturn(event), stringToLanguage(message[2]), 0L).start();
+                break;
+            case "ping":
+                new Ping(event).start();
+                break;
+            case "help":
+                new Help(event).start();
+                break;
+            default:
+                EmbedBuilder eb = new EmbedBuilder().setTitle("Invalid Syntax")
+                        .setFooter("Use *code help* for all commands");
+                event.getChannel().sendMessage(eb.build()).queue();
+
         }
         System.gc();
     }
@@ -144,5 +134,27 @@ public class Main extends ListenerAdapter {
         StringBuilder retVal = new StringBuilder();
         IntStream.range(startIndex, stringArray.length).forEach(i -> retVal.append(stringArray[i]).append(" "));
         return retVal.substring(0, retVal.length() - 1);
+    }
+
+    private static String parseCodeAndReturn(MessageReceivedEvent event) {
+        try {
+            String code = event.getMessage().getContentStripped();
+            String parsedCode = convertStringArrayToString(code.split(" "), 3);
+            if (parsedCode.startsWith("c++")) {
+                parsedCode = parsedCode.substring(3);
+            }
+            return parsedCode;
+        } catch (StringIndexOutOfBoundsException e) {
+            List<Message.Attachment> attachments = event.getMessage().getAttachments();
+            if (attachments.size() != 1) {
+                return null;
+            }
+            try {
+                return new String(attachments.get(0).retrieveInputStream().get().readAllBytes(),
+                        StandardCharsets.UTF_8);
+            } catch (IOException | InterruptedException | ExecutionException e1) {
+                return null;
+            }
+        }
     }
 }

@@ -24,25 +24,40 @@ public class Programming extends Command {
     private final Languages language;
     private final StringBuffer output;
     private final AtomicReference<Timer> timeoutLeftTimer;
-    private File codeFile;
+    private final File codeFile;
 
     public Programming(MessageReceivedEvent event, String code, Languages language) {
         this.event = event;
+        if (language == null) {
+            invalidCommand(1);
+            throw new NullPointerException();
+        }
+        if (code == null) {
+            invalidCommand(0);
+            throw new NullPointerException();
+        }
         this.code = code;
         this.language = language;
         this.output = new StringBuffer("\u200B");
         this.timeoutLeftTimer = new AtomicReference<>();
+        File codeFile1;
+        try {
+            codeFile1 = generateCodeDirectory();
+        } catch (IOException e) {
+            codeFile1 = null;
+            Logger.getLogger(Programming.class.getName()).log(Level.WARNING, "Failed to create code directory");
+        }
+        this.codeFile = codeFile1;
     }
 
     @Override
     public void setCommand() throws Exception {
         if (language == Languages.HTML) {
-            new HTML(event, code).start();
+            new HTML(event, codeFile).start();
             return;
         }
         generateRestAction().queue((Message msg) -> {
             try {
-                codeFile = generateCodeDirectory();
                 Process process = Objects.requireNonNull(generateCodeProcessBuilder(msg)).start();
                 BufferedReader out = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 BufferedWriter in = new BufferedWriter(new OutputStreamWriter(process.getOutputStream()));
@@ -66,6 +81,28 @@ public class Programming extends Command {
                 unexpectedError(e.toString());
             }
         });
+    }
+
+    @Override
+    public void invalidCommand(int i) {
+        EmbedBuilder eb = null;
+        switch (i) {
+            case 0:
+                eb = new EmbedBuilder()
+                        .setTitle("No Code was Found")
+                        .setDescription("use *code help* for more information")
+                        .setFooter(String.format("Created by %s", event.getAuthor().getName()),
+                                event.getAuthor().getAvatarUrl());
+                break;
+            case 1:
+                eb = new EmbedBuilder()
+                        .setTitle("Invalid Programming Language")
+                        .setDescription("use *code help* for more information")
+                        .setFooter(String.format("Created by %s", event.getAuthor().getName()),
+                                event.getAuthor().getAvatarUrl());
+                break;
+        }
+        event.getChannel().sendMessage(Objects.requireNonNull(eb).build()).queue();
     }
 
     private File generateCodeDirectory() throws IOException {
@@ -200,22 +237,20 @@ public class Programming extends Command {
 }
 
 class HTML extends Command {
-    public static HashMap<String, String> fileMap = new HashMap<>();
-    private final String code;
+    public static HashMap<String, File> fileMap = new HashMap<>();
+    private final File codeFile;
     private final String key;
-    private final InputStream attachment;
 
-    public HTML(MessageReceivedEvent event, String code) {
+    public HTML(MessageReceivedEvent event, File codeFile) {
         String key1;
-        this.event = event;
-        this.code = code;
+        this.event = Objects.requireNonNull(event);
+        this.codeFile = Objects.requireNonNull(codeFile);
         key1 = generateKey();
         while (fileMap.containsKey(key1)) {
             key1 = generateKey();
         }
         this.key = key1;
-        ClassLoader classloader = Thread.currentThread().getContextClassLoader();
-        this.attachment = classloader.getResourceAsStream("images/logos/html.png");
+
     }
 
     private String generateKey() {
@@ -233,10 +268,12 @@ class HTML extends Command {
     @Override
     public void setCommand() throws Exception {
         String url = String.format("%shtml/%s", SelfPing.url, key);
-        fileMap.put(key, code);
+        fileMap.put(key, codeFile);
         MessageAction restAction =
                 event.getChannel().sendMessage(generateEmbed(url).build());
-        if (attachment.available() > 0) {
+        InputStream attachment = Thread.currentThread().getContextClassLoader()
+                .getResourceAsStream("images/logos/html.png");
+        if (attachment != null && attachment.available() > 0) {
             restAction = restAction.addFile(attachment, "image.png");
         }
         restAction.queue();
@@ -244,12 +281,27 @@ class HTML extends Command {
                 new TimerTask() {
                     @Override
                     public void run() {
-                        if (!fileMap.remove(key, code)) {
-                            Logger.getLogger(Programming.class.getName()).log(Level.WARNING, "File Delete Failed");
-                        }
+                        deleteFileAndLog();
+                        fileMap.remove(key, codeFile);
                     }
                 }, 600000
         );
+    }
+
+    @Override
+    public void invalidCommand(int i) {
+
+    }
+
+    private void deleteFileAndLog() {
+        if (!codeFile.getParentFile().setWritable(true)) {
+            Logger.getLogger(Programming.class.getName()).log(Level.WARNING,
+                    String.format("File Set Writable Failed: %s", codeFile.getParent()));
+        }
+        if (!FileSystemUtils.deleteRecursively(codeFile.getParentFile())) {
+            Logger.getLogger(Programming.class.getName()).log(Level.WARNING,
+                    String.format("File Delete Failed: %s", codeFile.getParent()));
+        }
     }
 
     private EmbedBuilder generateEmbed(String url) {

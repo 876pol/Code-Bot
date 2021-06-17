@@ -6,7 +6,8 @@ import net.dv8tion.jda.api.events.message.MessageReceivedEvent
 import org.awaitility.Awaitility
 import org.awaitility.core.ConditionTimeoutException
 import org.springframework.util.FileSystemUtils
-import java.io.*
+import java.io.BufferedReader
+import java.io.File
 import java.nio.file.Path
 import java.util.*
 import java.util.concurrent.TimeUnit
@@ -28,9 +29,9 @@ enum class Verdicts(
     RUNTIME_ERROR(":warning: Runtime Error", false);
 }
 
-class Judge(event: MessageReceivedEvent, code: String, language: Languages, problem: Long) : Command() {
-    private val code: String
-    private val language: Languages
+class Judge(event: MessageReceivedEvent, code: String?, language: Languages?, problem: Long) : Command() {
+    private val code: String?
+    private val language: Languages?
     private val problem: Problem
     private val output: StringBuilder
 
@@ -43,6 +44,14 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
     }
 
     override fun setCommand() {
+        if (language == null || language == Languages.HTML) {
+            invalidCommand(1)
+            return
+        }
+        if (code == null) {
+            invalidCommand(0)
+            return
+        }
         val testCasesResults = Array(this.problem.size) { Pair(Verdicts.PENDING, -1) }
         this.event.channel.sendMessage(generateCodeRunningEmbed(testCasesResults, this.event).build())
             .queue { msg: Message? ->
@@ -61,9 +70,28 @@ class Judge(event: MessageReceivedEvent, code: String, language: Languages, prob
             }
     }
 
+    override fun invalidCommand(i: Int) {
+        var eb: EmbedBuilder? = null
+        when (i) {
+            0 -> eb = EmbedBuilder()
+                .setTitle("No Code was Found")
+                .setDescription("use *code help* for more information")
+                .setFooter("Created by ${event.author.name}", event.author.avatarUrl)
+            1 -> eb = EmbedBuilder()
+                .setTitle("Invalid Programming Language")
+                .setDescription("use *code help* for more information")
+                .setFooter("Created by ${event.author.name}", event.author.avatarUrl)
+            2 -> eb = EmbedBuilder()
+                .setTitle("Invalid Problem Number")
+                .setDescription("use *code help* for more information")
+                .setFooter("Created by ${event.author.name}", event.author.avatarUrl)
+        }
+        event.channel.sendMessage(eb!!.build()).queue()
+    }
+
     private fun runTest(folder: Path, testCases: Array<Pair<Verdicts, Int>>, problem: Problem, index: Int) {
         val processBuilder = generateProcessBuilderAndLog(
-            File("$folder/Main${this.language.fileExtension}"),
+            File("$folder/Main${this.language!!.fileExtension}"),
             File("$folder/test.in"),
             this.language
         )
